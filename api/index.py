@@ -1,37 +1,24 @@
-from http.server import BaseHTTPRequestHandler
-from urllib.parse import parse_qs, urlparse
-import json
-import os
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+from typing import List
+from fastapi.responses import JSONResponse
 
-class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        try:
-            # Load JSON file
-            json_path = os.path.join(os.path.dirname(__file__), "..", "q-vercel-python.json")
-            with open(json_path, "r") as f:
-                student_list = json.load(f)
+app = FastAPI()
 
-            # Convert list to dict for fast lookup
-            student_data = {entry["name"]: entry["marks"] for entry in student_list}
+# Enable CORS for all origins on GET requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
-            # Parse query ?name=X&name=Y
-            parsed = urlparse(self.path)
-            query = parse_qs(parsed.query)
-            names = query.get("name", [])
+# Generate 100 imaginary students with marks (e.g. Student1, Student2,...)
+students = {f"Student{i}": i % 100 + 1 for i in range(1, 101)}
 
-            # Get marks in order (return None if not found)
-            marks = [student_data.get(name, None) for name in names]
-
-            # Response
-            self.send_response(200)
-            self.send_header("Content-type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps({"marks": marks}).encode())
-
-        except Exception as e:
-            # On error, return 500 and the message
-            self.send_response(500)
-            self.send_header("Content-type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": str(e)}).encode())
+@app.get("/api")
+async def get_marks(name: List[str] = Query(...)):
+    # Collect marks for each requested name
+    marks_list = [students.get(n, None) for n in name]
+    # If a student name is not found, you could either return null or 0 or error - I'll use None
+    return JSONResponse(content={"marks": marks_list})
